@@ -111,8 +111,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         decidePolicyFor navigationAction: WKNavigationAction,
         decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
     ) {
-        guard navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url,
-              !Self.isInApp(url) else {
+        guard navigationAction.targetFrame?.isMainFrame ?? true, let url = navigationAction.request.url,
+              Self.isExternal(url, linkClick: navigationAction.navigationType == .linkActivated) else {
             decisionHandler(.allow)
             return
         }
@@ -142,11 +142,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         return nil
     }
 
+    // Only web URLs are judged by host. about:, blob: and data: are the page's own content,
+    // and other schemes (mailto:) leave the app only when they were clicked.
+    private static func isExternal(_ url: URL, linkClick: Bool) -> Bool {
+        switch url.scheme?.lowercased() ?? "" {
+        case "https", "http":
+            return !isInApp(url)
+        case "about", "blob", "data":
+            return false
+        default:
+            return linkClick
+        }
+    }
+
     private static func isInApp(_ url: URL) -> Bool {
-        guard let host = url.host?.lowercased() else { return false }
+        guard url.scheme?.lowercased() == "https",
+              let host = url.host?.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ".")) else {
+            return false
+        }
         if inAppDomains.contains(where: { host == $0 || host.hasSuffix("." + $0) }) {
             return true
         }
-        return host.split(separator: ".").contains("google")
+        // google.com plus its country domains (google.de, google.co.uk, google.com.au).
+        // Anchored so that google.example.com or google.zip do not qualify.
+        return host.range(of: #"^(?:[a-z0-9-]+\.)*google\.(?:com|(?:com?\.)?[a-z]{2})$"#, options: .regularExpression) != nil
     }
 }

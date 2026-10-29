@@ -55,8 +55,12 @@ final class PlayerBridge: NSObject, WKScriptMessageHandler {
 
     // MARK: - WKScriptMessageHandler
 
+    // The handler is registered for every page the wrapper loads, so only accept
+    // state from the YouTube Music main frame.
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard let body = message.body as? [String: Any] else { return }
+        guard message.frameInfo.isMainFrame,
+              message.frameInfo.securityOrigin.host == "music.youtube.com",
+              let body = message.body as? [String: Any] else { return }
         track = Track(body: body)
         if let artwork = track.artwork, artworkCache[artwork] == nil {
             loadArtwork(from: artwork)
@@ -156,7 +160,7 @@ final class PlayerBridge: NSObject, WKScriptMessageHandler {
 
     static let userScript = #"""
     (() => {
-      if (window.__ytmBridge) return;
+      if (location.host !== 'music.youtube.com' || window.__ytmBridge) return;
       window.__ytmBridge = true;
 
       const video = () => document.querySelector('video');
