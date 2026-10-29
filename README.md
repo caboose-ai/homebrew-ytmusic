@@ -22,17 +22,11 @@ brew install ytmusic
 
 `brew trust` is needed because the formula comes from a third-party tap. Homebrew 5 asks you to trust it explicitly before installing.
 
-### Add it to /Applications
+### /Applications
 
-Homebrew installs the app into its own prefix. Link it into `/Applications` so Spotlight and Launchpad can find it:
+The formula copies `YTMusic.app` into `/Applications` on every install and upgrade, so Spotlight, Launchpad and Raycast find it and keep finding it across versions. A symlink would not survive upgrades: launchers resolve it down to the versioned Cellar folder, which Homebrew deletes when it upgrades.
 
-```bash
-ln -sf "$(brew --prefix ytmusic)/YTMusic.app" /Applications/YTMusic.app
-```
-
-The link points at the stable `opt` path, so it keeps working across `brew upgrade`.
-
-Then open **YT Music** from Spotlight.
+Open **YT Music** from Spotlight. Quit the app before upgrading so the copy can be replaced.
 
 ## Usage
 

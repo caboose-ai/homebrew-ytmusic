@@ -13,10 +13,23 @@ class Ytmusic < Formula
     prefix.install "dist/YTMusic.app"
   end
 
+  # A real copy, not a symlink: launchers (Raycast, Spotlight) resolve symlinks
+  # down to the versioned Cellar folder, which is deleted on every upgrade.
+  # Copying into /Applications from a formula is unusual, but this is a personal tap.
+  def post_install
+    target = Pathname("/Applications/YTMusic.app")
+    FileUtils.rm_rf(target)
+    FileUtils.cp_r(prefix/"YTMusic.app", target)
+  rescue SystemCallError => e
+    opoo "Could not copy YTMusic.app into /Applications (#{e.message}). " \
+         "Copy it yourself: cp -R #{prefix}/YTMusic.app /Applications/"
+  end
+
   def caveats
     <<~EOS
-      To make YT Music show up in Spotlight and Launchpad, link it into /Applications:
-        ln -sf #{opt_prefix}/YTMusic.app /Applications/YTMusic.app
+      YTMusic.app is copied into /Applications on every install and upgrade,
+      so Spotlight and Raycast keep working across versions. Quit the app
+      before upgrading so the copy can be replaced.
     EOS
   end
 
