@@ -1,0 +1,21 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build YTMusic.app
+        run: bash scripts/build-app.sh dist
+
+      - name: Check bundle
+        run: |
+          test -x dist/YTMusic.app/Contents/MacOS/YTMusic
+          plutil -lint dist/YTMusic.app/Contents/Info.plist
