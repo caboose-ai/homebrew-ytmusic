@@ -136,9 +136,16 @@ final class PlayerBridge: NSObject, WKScriptMessageHandler {
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
             do {
-                try process.run()
                 if wait {
-                    process.waitUntilExit()
+                    // Bounded, so a hung slk cannot stop the app from quitting.
+                    let done = DispatchSemaphore(value: 0)
+                    process.terminationHandler = { _ in done.signal() }
+                    try process.run()
+                    if done.wait(timeout: .now() + 3) == .timedOut {
+                        process.terminate()
+                    }
+                } else {
+                    try process.run()
                 }
             } catch {
                 // slk missing or broken: the feature quietly does nothing.
@@ -176,8 +183,9 @@ final class PlayerBridge: NSObject, WKScriptMessageHandler {
             if (try? shell.run()) != nil {
                 let data = output.fileHandleForReading.readDataToEndOfFile()
                 shell.waitUntilExit()
+                // command -v can also print a function or alias; only take an absolute executable.
                 let path = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-                found = path.isEmpty ? nil : path
+                found = path.hasPrefix("/") && FileManager.default.isExecutableFile(atPath: path) ? path : nil
             }
         }
         cachedSlk = .some(found)
@@ -212,7 +220,8 @@ final class PlayerBridge: NSObject, WKScriptMessageHandler {
     }
 
     private func loadArtwork(from urlString: String) {
-        guard let url = URL(string: urlString) else { return }
+        // The URL comes from page-controlled metadata, so never fetch file: or other schemes.
+        guard let url = URL(string: urlString), url.scheme?.lowercased() == "https" else { return }
         URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
             guard let data, let image = NSImage(data: data) else { return }
             let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }

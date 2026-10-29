@@ -147,22 +147,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         guard let url = navigationAction.request.url else { return nil }
         if Self.isInApp(url) {
             webView.load(navigationAction.request)
-        } else {
+        } else if Self.isExternal(url, linkClick: navigationAction.navigationType == .linkActivated) {
             NSWorkspace.shared.open(url)
         }
         return nil
     }
 
-    // Only web URLs are judged by host. about:, blob: and data: are the page's own content,
-    // and other schemes (mailto:) leave the app only when they were clicked.
+    // Only web URLs are judged by host. NSWorkspace.open launches URL-scheme handlers
+    // with no prompt, so of the app-launching schemes only a clicked mailto: gets
+    // through; everything else (about:, blob:, data: included) stays with WebKit.
     private static func isExternal(_ url: URL, linkClick: Bool) -> Bool {
         switch url.scheme?.lowercased() ?? "" {
         case "https", "http":
             return !isInApp(url)
-        case "about", "blob", "data":
-            return false
-        default:
+        case "mailto":
             return linkClick
+        default:
+            return false
         }
     }
 
