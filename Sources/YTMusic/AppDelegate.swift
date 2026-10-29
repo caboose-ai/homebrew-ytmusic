@@ -101,7 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
 
     @objc func previousTrack(_ sender: Any?) {
-        player.send(.previous)
+        player.send(.prev)
     }
 
     // MARK: - WKNavigationDelegate
