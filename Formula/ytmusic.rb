@@ -1,8 +1,8 @@
 class Ytmusic < Formula
   desc "Tiny native YouTube Music wrapper for macOS, built from source"
   homepage "https://github.com/caboose-ai/homebrew-ytmusic"
-  url "https://github.com/caboose-ai/homebrew-ytmusic/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "3c6b21f4202360b2ed5da5c79422309b1525b3248a1132fc341400f988db003b"
+  url "https://github.com/caboose-ai/homebrew-ytmusic/archive/refs/tags/v0.2.0.tar.gz"
+  sha256 "12c9ab09e699fbf3b3cc5814f081801f386faacd2c7f54a0b08eeaf691b6bb97"
   license "MIT"
   head "https://github.com/caboose-ai/homebrew-ytmusic.git", branch: "main"
 
