@@ -36,8 +36,17 @@ final class PlayerBridge: NSObject, WKScriptMessageHandler {
 
     weak var webView: WKWebView?
 
+    static let slackStatusKey = "slackStatusEnabled"
+
     private var track = Track()
     private var artworkCache: [String: MPMediaItemArtwork] = [:]
+
+    // Slack status goes through the slk CLI, so every slk call runs on this serial queue,
+    // which keeps set and clear in order. cachedSlk is only read and written on that queue.
+    private let slkQueue = DispatchQueue(label: "io.caboose-ai.ytmusic.slk")
+    private var cachedSlk: String??
+    // Set only when this app has put a status up, so quitting never clears one the user set.
+    private var slackStatusIsOurs = false
 
     override init() {
         super.init()
@@ -61,11 +70,114 @@ final class PlayerBridge: NSObject, WKScriptMessageHandler {
         guard message.frameInfo.isMainFrame,
               message.frameInfo.securityOrigin.host == "music.youtube.com",
               let body = message.body as? [String: Any] else { return }
+        let previous = track
         track = Track(body: body)
         if let artwork = track.artwork, artworkCache[artwork] == nil {
             loadArtwork(from: artwork)
         }
         publishNowPlaying()
+        updateSlackStatus(from: previous)
+    }
+
+    // MARK: - Slack status (opt-in)
+
+    func setSlackStatusEnabled(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: Self.slackStatusKey)
+        if !enabled {
+            clearSlackStatus()
+        }
+    }
+
+    // Called on quit, so a status this app set does not outlive it.
+    func shutdown() {
+        clearSlackStatus(wait: true)
+    }
+
+    private func updateSlackStatus(from previous: Track) {
+        guard UserDefaults.standard.bool(forKey: Self.slackStatusKey) else { return }
+        guard track.playing, !track.title.isEmpty else {
+            if previous.playing {
+                clearSlackStatus()
+            }
+            return
+        }
+        let changed = track.title != previous.title || track.artist != previous.artist || !previous.playing
+        guard changed else { return }
+
+        var arguments = ["status", slackText(), ":musical_note:"]
+        // slk takes a duration such as 5m, so the status expires with the track.
+        // Unknown duration leaves the status up until pause or quit.
+        if track.duration > track.position {
+            let minutes = max(1, Int(ceil((track.duration - track.position) / 60)))
+            arguments.append("\(minutes)m")
+        }
+        slackStatusIsOurs = true
+        runSlk(arguments)
+    }
+
+    private func clearSlackStatus(wait: Bool = false) {
+        guard slackStatusIsOurs else { return }
+        slackStatusIsOurs = false
+        runSlk(["status", "clear"], wait: wait)
+    }
+
+    private func slackText() -> String {
+        let text = track.artist.isEmpty ? track.title : "\(track.title) - \(track.artist)"
+        // Slack caps status text at 100 characters.
+        return String(text.prefix(100))
+    }
+
+    private func runSlk(_ arguments: [String], wait: Bool = false) {
+        let work: () -> Void = { [weak self] in
+            guard let self, let slk = self.slkLocation() else { return }
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: slk)
+            process.arguments = arguments
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            do {
+                try process.run()
+                if wait {
+                    process.waitUntilExit()
+                }
+            } catch {
+                // slk missing or broken: the feature quietly does nothing.
+            }
+        }
+        if wait {
+            slkQueue.sync(execute: work)
+        } else {
+            slkQueue.async(execute: work)
+        }
+    }
+
+    // Must only be called on slkQueue.
+    private func slkLocation() -> String? {
+        if let cachedSlk {
+            return cachedSlk
+        }
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let candidates = [
+            "/opt/homebrew/bin/slk", "/usr/local/bin/slk", home + "/.local/bin/slk", home + "/.gem/bin/slk",
+        ]
+        var found = candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
+        if found == nil {
+            // A Dock-launched app has a minimal PATH, so ask a login shell as a last resort.
+            let shell = Process()
+            let output = Pipe()
+            shell.executableURL = URL(fileURLWithPath: "/bin/zsh")
+            shell.arguments = ["-lc", "command -v slk"]
+            shell.standardOutput = output
+            shell.standardError = FileHandle.nullDevice
+            if (try? shell.run()) != nil {
+                let data = output.fileHandleForReading.readDataToEndOfFile()
+                shell.waitUntilExit()
+                let path = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+                found = path.isEmpty ? nil : path
+            }
+        }
+        cachedSlk = .some(found)
+        return found
     }
 
     // MARK: - Now Playing

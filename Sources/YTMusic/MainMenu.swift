@@ -33,10 +33,14 @@ enum MainMenu {
         ]))
 
         // Arrow keys are deliberately paired with Option: bare ⌘← and ⌘→ belong to text editing.
+        let slackItem = item("Slack Status", #selector(AppDelegate.toggleSlackStatus(_:)), target: target)
+        slackItem.state = UserDefaults.standard.bool(forKey: PlayerBridge.slackStatusKey) ? .on : .off
         menu.addItem(menuItem("Controls", [
             item("Play/Pause", #selector(AppDelegate.togglePlayPause(_:)), key: "p", target: target),
             item("Next", #selector(AppDelegate.nextTrack(_:)), key: "\u{F703}", modifiers: [.command, .option], target: target),
             item("Previous", #selector(AppDelegate.previousTrack(_:)), key: "\u{F702}", modifiers: [.command, .option], target: target),
+            .separator(),
+            slackItem,
         ]))
 
         let windowMenu = menuItem("Window", [

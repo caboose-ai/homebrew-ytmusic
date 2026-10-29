@@ -104,6 +104,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         player.send(.prev)
     }
 
+    @objc func toggleSlackStatus(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem else { return }
+        let enabled = item.state != .on
+        item.state = enabled ? .on : .off
+        player.setSlackStatusEnabled(enabled)
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        player.shutdown()
+    }
+
     // MARK: - WKNavigationDelegate
 
     func webView(
