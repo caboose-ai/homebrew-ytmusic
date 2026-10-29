@@ -157,9 +157,13 @@ final class PlayerBridge: NSObject, WKScriptMessageHandler {
             return cachedSlk
         }
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let candidates = [
+        var candidates = [
             "/opt/homebrew/bin/slk", "/usr/local/bin/slk", home + "/.local/bin/slk", home + "/.gem/bin/slk",
         ]
+        // Homebrew's Ruby keeps gem binaries under a versioned folder, e.g. gems/4.0.0/bin.
+        let gemRoot = "/opt/homebrew/lib/ruby/gems"
+        let gemVersions = (try? FileManager.default.contentsOfDirectory(atPath: gemRoot)) ?? []
+        candidates += gemVersions.map { "\(gemRoot)/\($0)/bin/slk" }
         var found = candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
         if found == nil {
             // A Dock-launched app has a minimal PATH, so ask a login shell as a last resort.
