@@ -16,10 +16,10 @@ class Ytmusic < Formula
   # A real copy, not a symlink: launchers (Raycast, Spotlight) resolve symlinks
   # down to the versioned Cellar folder, which is deleted on every upgrade.
   # Copying into /Applications from a formula is unusual, but this is a personal tap.
-  def post_install
+  def post_install_steps
     target = Pathname("/Applications/YTMusic.app")
-    FileUtils.rm_rf(target)
-    FileUtils.cp_r(prefix/"YTMusic.app", target)
+    rm_r(target) if target.exist? || target.symlink?
+    cp_r(prefix/"YTMusic.app", target)
   rescue SystemCallError => e
     opoo "Could not copy YTMusic.app into /Applications (#{e.message}). " \
          "Copy it yourself: cp -R #{prefix}/YTMusic.app /Applications/"
