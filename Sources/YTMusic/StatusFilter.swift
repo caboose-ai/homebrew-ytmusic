@@ -8,14 +8,15 @@ enum StatusFilter {
     static let genericStatus = "♪ Listening to music"
 
     static func isClean(_ text: String) -> Bool {
-        // Both forms are checked: the plain form so "Sex!" cannot hide behind
-        // the look-alike map ("!" -> "i" would glue into "sexi"), and the
-        // mapped form so "S3xy" and "A55" resolve to the words they spell.
+        // Three forms are checked, each tokenized on letters only, so digits
+        // and symbols act as separators in whichever form leaves them unmapped:
+        // plain catches "Sex!" and "Sex69", the digit-mapped form catches
+        // "S3x!" and "A55!", and the fully mapped form catches "$ex" and "@ss".
         for form in normalize(text) {
             if blockedSubstrings.contains(where: { form.contains($0) }) {
                 return false
             }
-            let tokens = form.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+            let tokens = form.split(whereSeparator: { !$0.isLetter }).map(String.init)
             if tokens.contains(where: { blockedWords.contains($0) }) {
                 return false
             }
@@ -37,11 +38,15 @@ enum StatusFilter {
             let category = $0.properties.generalCategory
             return category != .control && category != .format && !$0.properties.isDefaultIgnorableCodePoint
         }))
-        let lookalikes: [Character: Character] = [
-            "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "$": "s", "@": "a", "!": "i",
+        let digitLookalikes: [Character: Character] = [
+            "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t",
         ]
-        let mapped = String(visible.map { lookalikes[$0] ?? $0 })
-        return [visible, mapped]
+        let symbolLookalikes: [Character: Character] = [
+            "$": "s", "@": "a", "!": "i",
+        ]
+        let digitMapped = String(visible.map { digitLookalikes[$0] ?? $0 })
+        let fullMapped = String(digitMapped.map { symbolLookalikes[$0] ?? $0 })
+        return [visible, digitMapped, fullMapped]
     }
 
     // Matched anywhere, even inside longer words. Only terms that are explicit
