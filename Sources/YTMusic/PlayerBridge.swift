@@ -125,9 +125,16 @@ final class PlayerBridge: NSObject, WKScriptMessageHandler {
     }
 
     private func slackText() -> String {
-        let text = track.artist.isEmpty ? track.title : "\(track.title) - \(track.artist)"
-        // Slack caps status text at 100 characters.
-        return String(text.prefix(100))
+        let raw = track.artist.isEmpty ? track.title : "\(track.title) - \(track.artist)"
+        // Strip control and format characters from page-controlled metadata.
+        let visible = String(String.UnicodeScalarView(raw.unicodeScalars.filter {
+            let category = $0.properties.generalCategory
+            return category != .control && category != .format
+        }))
+        // The ♪ prefix means the argv element can never start with "-" (an slk
+        // option) or read as an slk subcommand such as "clear". Slack caps
+        // status text at 100 characters.
+        return "♪ " + visible.prefix(98)
     }
 
     private func runSlk(_ arguments: [String], wait: Bool = false) {

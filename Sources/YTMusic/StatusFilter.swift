@@ -5,27 +5,43 @@ import Foundation
 /// text falls back to a generic line, so coworkers see "Listening to music"
 /// instead of an explicit title. Edit the lists below to taste.
 enum StatusFilter {
-    static let genericStatus = "Listening to music"
+    static let genericStatus = "♪ Listening to music"
 
     static func isClean(_ text: String) -> Bool {
-        let normalized = normalize(text)
-        if blockedSubstrings.contains(where: { normalized.contains($0) }) {
-            return false
+        // Both forms are checked: the plain form so "Sex!" cannot hide behind
+        // the look-alike map ("!" -> "i" would glue into "sexi"), and the
+        // mapped form so "S3xy" and "A55" resolve to the words they spell.
+        for form in normalize(text) {
+            if blockedSubstrings.contains(where: { form.contains($0) }) {
+                return false
+            }
+            let tokens = form.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+            if tokens.contains(where: { blockedWords.contains($0) }) {
+                return false
+            }
         }
-        let tokens = normalized.split(whereSeparator: { !$0.isLetter }).map(String.init)
-        return !tokens.contains(where: { blockedWords.contains($0) })
+        return true
     }
 
-    // Lowercase, strip accents, and fold common look-alikes so "Sh1t" and
-    // "F@ck" are caught. Mapped digits become letters before tokenizing.
-    private static func normalize(_ text: String) -> String {
+    // Lowercase, strip accents, fold fullwidth forms, and drop invisible
+    // format/control characters (zero-width joiners, bidi marks) that would
+    // otherwise split a word. Returns the plain form and the look-alike form.
+    private static func normalize(_ text: String) -> [String] {
         let folded = text
-            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US"))
+            .folding(
+                options: [.diacriticInsensitive, .caseInsensitive, .widthInsensitive],
+                locale: Locale(identifier: "en_US")
+            )
             .lowercased()
+        let visible = String(String.UnicodeScalarView(folded.unicodeScalars.filter {
+            let category = $0.properties.generalCategory
+            return category != .control && category != .format && !$0.properties.isDefaultIgnorableCodePoint
+        }))
         let lookalikes: [Character: Character] = [
             "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "$": "s", "@": "a", "!": "i",
         ]
-        return String(folded.map { lookalikes[$0] ?? $0 })
+        let mapped = String(visible.map { lookalikes[$0] ?? $0 })
+        return [visible, mapped]
     }
 
     // Matched anywhere, even inside longer words. Only terms that are explicit
