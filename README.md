@@ -46,6 +46,10 @@ Open **YT Music** from Spotlight. Quit the app before upgrading so the copy can 
 
 Links to sites outside YouTube and Google open in your default browser.
 
+### Slack status (optional)
+
+If the `slk` CLI is installed and authenticated, **Controls → Slack Status** (off by default) sets your Slack status to the current track and clears it on pause and on quit. Titles that trip the NSFW filter post a generic "Listening to music" instead of the title; the word lists live in `Sources/YTMusic/StatusFilter.swift` and are meant to be edited to taste.
+
 ## Updating
 
 ```bash

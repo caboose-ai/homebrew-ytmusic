@@ -104,7 +104,10 @@ final class PlayerBridge: NSObject, WKScriptMessageHandler {
         let changed = track.title != previous.title || track.artist != previous.artist || !previous.playing
         guard changed else { return }
 
-        var arguments = ["status", slackText(), ":musical_note:"]
+        // NSFW titles fall back to a generic line; the track itself is unaffected.
+        let text = slackText()
+        let status = StatusFilter.isClean(text) ? text : StatusFilter.genericStatus
+        var arguments = ["status", status, ":musical_note:"]
         // slk takes a duration such as 5m, so the status expires with the track.
         // Unknown duration leaves the status up until pause or quit.
         if track.duration > track.position {
@@ -122,9 +125,16 @@ final class PlayerBridge: NSObject, WKScriptMessageHandler {
     }
 
     private func slackText() -> String {
-        let text = track.artist.isEmpty ? track.title : "\(track.title) - \(track.artist)"
-        // Slack caps status text at 100 characters.
-        return String(text.prefix(100))
+        let raw = track.artist.isEmpty ? track.title : "\(track.title) - \(track.artist)"
+        // Strip control and format characters from page-controlled metadata.
+        let visible = String(String.UnicodeScalarView(raw.unicodeScalars.filter {
+            let category = $0.properties.generalCategory
+            return category != .control && category != .format
+        }))
+        // The ♪ prefix means the argv element can never start with "-" (an slk
+        // option) or read as an slk subcommand such as "clear". Slack caps
+        // status text at 100 characters.
+        return "♪ " + visible.prefix(98)
     }
 
     private func runSlk(_ arguments: [String], wait: Bool = false) {
